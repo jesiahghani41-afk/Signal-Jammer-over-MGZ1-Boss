@@ -1,0 +1,6 @@
+{
+	"tenna_generic_projectile_0":	  { "File": "tenna_generic_projectile.png", "Rect": "0,0,16,16", "Center": "8,8" },
+	"tenna_generic_projectile_1":	  { "File": "tenna_generic_projectile.png", "Rect": "16,0,16,16", "Center": "8,8" },
+	"tenna_generic_projectile_2":	  { "File": "tenna_generic_projectile.png", "Rect": "32,0,16,16", "Center": "8,8" },
+	"tenna_generic_projectile_3":	  { "File": "tenna_generic_projectile.png", "Rect": "48,0,16,16", "Center": "8,8" },
+}
