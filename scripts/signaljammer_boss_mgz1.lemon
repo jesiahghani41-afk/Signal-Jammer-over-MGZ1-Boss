@@ -1,0 +1,861 @@
+/*
+    Signal Jammer over MGZ1 Boss
+    Replaces Tunnelbot in Marble Garden Zone Act 1
+    
+    This script replaces the original MGZ1 boss (Tunnelbot) with
+    Signal Jammer from Sonic 3 & Tenna.
+    
+    Written in S3AIR Lemon format for Sonic 3 Angel Island Revisited
+*/
+
+//-------------------------------------------------------//
+// Signal Jammer MGZ1 Boss - Global Variables            //
+//-------------------------------------------------------//
+
+global bool SJMGZ1.boss.defeated
+global u8 SJMGZ1.boss.state
+global u16 SJMGZ1.boss.stateTimer
+global u16 SJMGZ1.boss.stateRepeat
+global bool SJMGZ1.boss.flipFlag
+global bool SJMGZ1.boss.shootFlipFlag
+
+global s16 SJMGZ1.boss.legFrontXOffset
+global s16 SJMGZ1.boss.legFrontYOffset
+global s16 SJMGZ1.boss.legBackXOffset
+global s16 SJMGZ1.boss.legBackYOffset
+
+global u8 SJMGZ1.boss.maxDrones
+global u8 SJMGZ1.boss.currentDrones
+global u8 SJMGZ1.boss.droneDelayTimer
+global u8 SJMGZ1.boss.droneDoorOpenTimer
+global u8 SJMGZ1.boss.defeatedDrones
+
+//-------------------------------------------------------//
+// MGZ1 Boss Initialization Hook                         //
+//-------------------------------------------------------//
+
+//# address-hook(0x088568) end(0x08856c)
+function void SJMGZ1.fn088568()
+{
+    // Replace the original MGZ1 boss with Signal Jammer
+    A1 = 0x08859c
+    if (InitBoss(0x088576))
+        return
+
+    SJMGZ1.fn088576()
+}
+
+//-------------------------------------------------------//
+// Signal Jammer Boss Main Update                        //
+//-------------------------------------------------------//
+
+//# address-hook(0x088576) end(0x0885a0)
+function void SJMGZ1.fn088576()
+{
+    // State machine for Signal Jammer boss
+    call tableLookupAddress(0x0885a0, objA0.base_state)
+    
+    SJMGZ1.UpdateMovement()
+    SJMGZ1.HealthUpdater()
+    SJMGZ1.SpawnDrones()
+    
+    DrawBossHealthBar(0xb, boss.remaining_hits, 10)
+    
+    if boss.remaining_hits >= 6
+        SJMGZ1.boss.maxDrones = 1
+    else if boss.remaining_hits < 6 && boss.remaining_hits >= 3
+        SJMGZ1.boss.maxDrones = 2
+    else
+        SJMGZ1.boss.maxDrones = 3
+    
+    objA0.box_size.x = 255
+    objA0.box_size.y = 255
+    
+    Enemy.DrawDynamicObject()
+}
+
+//-------------------------------------------------------//
+// Signal Jammer Initialization                          //
+//-------------------------------------------------------//
+
+//# address-hook(0x0885a4) end(0x088600)
+function void SJMGZ1.Initialize()
+{
+#if STANDALONE
+    objA0.position.x.u16 += getScreenExtend() * 2
+#endif
+
+    setupObjectAttributesFull(0x088af6)
+
+    boss.remaining_hits = 8
+    objA0.hitbox_extends.y = 0x28
+    move_area.right = 0x2e00 + getScreenExtend() * 2
+    move_area.bottom.target = 0x0e10
+    u16[A0 + 0x3a] = 0x2e00
+    objA0.countdown_callback = 0x088616
+    fn0685e2()
+    objA0.flags38 |= 0x02
+
+    addPatternLoadingCue(0x088b88)
+
+    // Initialize Signal Jammer specific variables
+    SJMGZ1.boss.defeated = false
+    SJMGZ1.boss.state = 0
+    SJMGZ1.boss.stateTimer = 0
+    SJMGZ1.boss.stateRepeat = 0
+    SJMGZ1.boss.flipFlag = false
+    SJMGZ1.boss.shootFlipFlag = false
+    
+    SJMGZ1.boss.legFrontXOffset = 0
+    SJMGZ1.boss.legFrontYOffset = 0
+    SJMGZ1.boss.legBackXOffset = 0
+    SJMGZ1.boss.legBackYOffset = 0
+    
+    SJMGZ1.boss.maxDrones = 0
+    SJMGZ1.boss.currentDrones = 0
+    SJMGZ1.boss.droneDelayTimer = 255
+    SJMGZ1.boss.droneDoorOpenTimer = 0
+    SJMGZ1.boss.defeatedDrones = 0
+
+    // Set initial position - Signal Jammer enters from the right
+    objA0.position.x.u16 = camera.position.x.u16 + getScreenWidth() + 200
+    objA0.position.y.u16 = camera.position.y.u16 + getScreenHeight() / 2 - 22
+
+    if (allocDynamicObjectStd())
+    {
+        // Create the object that fades out level music and starts the boss theme
+        objA1.update_address = 0x085b30
+        u8[A1 + 0x2c] = MUSIC_MINIBOSS_2
+    }
+}
+
+//-------------------------------------------------------//
+// Signal Jammer State Machine                           //
+//-------------------------------------------------------//
+
+function void SJMGZ1.StateMachine()
+{
+    SJMGZ1.boss.stateTimer++
+    
+    if !SJMGZ1.boss.state
+    {
+        // State 0: Initialization
+        boss.remaining_hits = 8
+        SJMGZ1.boss.droneDelayTimer = 240
+        SJMGZ1.boss.currentDrones = 0
+        if SJMGZ1.boss.stateTimer < 30
+            return
+        SJMGZ1.boss.state = 1
+        SJMGZ1.boss.stateTimer = 0
+    }
+    else if SJMGZ1.boss.state == 1
+    {
+        // State 1: Enter from side with walking animation
+        if !SJMGZ1.boss.stateRepeat
+            SJMGZ1.boss.droneDelayTimer = 30
+        
+        if SJMGZ1.boss.flipFlag
+        {
+            if SJMGZ1.boss.stateTimer == 1
+            {
+                objA0.position.y.u16 = camera.position.y.u16 + getScreenHeight() / 2 - 20
+                if !SJMGZ1.boss.stateRepeat
+                    objA0.position.x.u16 = camera.position.x.u16 - 140
+                SJMGZ1.boss.legFrontXOffset = 0
+                SJMGZ1.boss.legFrontYOffset = 0
+                SJMGZ1.boss.legBackXOffset = 0
+                SJMGZ1.boss.legBackYOffset = 0
+            }
+            
+            // Walking animation - moving right
+            if SJMGZ1.boss.stateTimer < 20
+            {
+                objA0.position.x.u16 += 2
+                objA0.position.y.u16 -= 1
+                SJMGZ1.boss.legFrontXOffset += 2
+                SJMGZ1.boss.legFrontYOffset -= 1
+                SJMGZ1.boss.legBackXOffset -= 2
+                SJMGZ1.boss.legBackYOffset += 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 20 && SJMGZ1.boss.stateTimer < 40
+            {
+                objA0.position.x.u16 += 2
+                objA0.position.y.u16 += 1
+                SJMGZ1.boss.legFrontXOffset += 2
+                SJMGZ1.boss.legFrontYOffset += 1
+                SJMGZ1.boss.legBackXOffset -= 2
+                SJMGZ1.boss.legBackYOffset -= 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 40 && SJMGZ1.boss.stateTimer < 60
+            {
+                objA0.position.x.u16 += 2
+                objA0.position.y.u16 -= 1
+                SJMGZ1.boss.legFrontXOffset -= 2
+                SJMGZ1.boss.legFrontYOffset += 1
+                SJMGZ1.boss.legBackXOffset += 2
+                SJMGZ1.boss.legBackYOffset -= 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 60 && SJMGZ1.boss.stateTimer < 80
+            {
+                objA0.position.x.u16 += 2
+                objA0.position.y.u16 += 1
+                SJMGZ1.boss.legFrontXOffset -= 2
+                SJMGZ1.boss.legFrontYOffset -= 1
+                SJMGZ1.boss.legBackXOffset += 2
+                SJMGZ1.boss.legBackYOffset += 1
+            }
+        }
+        else
+        {
+            if SJMGZ1.boss.stateTimer == 1
+            {
+                objA0.position.y.u16 = camera.position.y.u16 + getScreenHeight() / 2 - 20
+                if !SJMGZ1.boss.stateRepeat
+                    objA0.position.x.u16 = camera.position.x.u16 + getScreenWidth() + 140
+                SJMGZ1.boss.legFrontXOffset = 0
+                SJMGZ1.boss.legFrontYOffset = 0
+                SJMGZ1.boss.legBackXOffset = 0
+                SJMGZ1.boss.legBackYOffset = 0
+            }
+            
+            // Walking animation - moving left
+            if SJMGZ1.boss.stateTimer < 20
+            {
+                objA0.position.x.u16 -= 2
+                objA0.position.y.u16 -= 1
+                SJMGZ1.boss.legFrontXOffset -= 2
+                SJMGZ1.boss.legFrontYOffset -= 1
+                SJMGZ1.boss.legBackXOffset += 2
+                SJMGZ1.boss.legBackYOffset += 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 20 && SJMGZ1.boss.stateTimer < 40
+            {
+                objA0.position.x.u16 -= 2
+                objA0.position.y.u16 += 1
+                SJMGZ1.boss.legFrontXOffset -= 2
+                SJMGZ1.boss.legFrontYOffset += 1
+                SJMGZ1.boss.legBackXOffset += 2
+                SJMGZ1.boss.legBackYOffset -= 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 40 && SJMGZ1.boss.stateTimer < 60
+            {
+                objA0.position.x.u16 -= 2
+                objA0.position.y.u16 -= 1
+                SJMGZ1.boss.legFrontXOffset += 2
+                SJMGZ1.boss.legFrontYOffset += 1
+                SJMGZ1.boss.legBackXOffset -= 2
+                SJMGZ1.boss.legBackYOffset -= 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 60 && SJMGZ1.boss.stateTimer < 80
+            {
+                objA0.position.x.u16 -= 2
+                objA0.position.y.u16 += 1
+                SJMGZ1.boss.legFrontXOffset += 2
+                SJMGZ1.boss.legFrontYOffset -= 1
+                SJMGZ1.boss.legBackXOffset -= 2
+                SJMGZ1.boss.legBackYOffset += 1
+            }
+        }
+        
+        // Play walking sound
+        if SJMGZ1.boss.stateTimer == 40 || SJMGZ1.boss.stateTimer == 80
+            playSound(0x96)
+        
+        if SJMGZ1.boss.stateTimer == 80
+        {
+            SJMGZ1.boss.legFrontXOffset = 0
+            SJMGZ1.boss.legFrontYOffset = 0
+            SJMGZ1.boss.legBackXOffset = 0
+            SJMGZ1.boss.legBackYOffset = 0
+            if !SJMGZ1.boss.stateRepeat
+            {
+                SJMGZ1.boss.stateRepeat++
+                SJMGZ1.boss.state = 1
+                SJMGZ1.boss.stateTimer = 0
+            }
+            else
+            {
+                SJMGZ1.boss.stateRepeat = 0
+                SJMGZ1.boss.state = 2
+                SJMGZ1.boss.stateTimer = 0
+            }
+        }
+    }
+    else if SJMGZ1.boss.state == 2
+    {
+        // State 2: Attack - Fire bomb projectile
+        if SJMGZ1.boss.stateTimer == 1
+            playSound(0x84)
+
+        if SJMGZ1.boss.stateTimer == 120
+        {
+            playSound(0x81)
+            camera.hyper_knux_shake = 0x14
+
+            // Spawn explosion effect
+            if SJMGZ1.boss.flipFlag
+                spawnChildObject(0x220268, 0x00, 0x12, 0x00)
+            else
+                spawnChildObject(0x220268, 0x00, -0x12, 0x00)
+            
+            objA1.mapping_offset = 0x01a99a
+            objA1.sprite_attributes = (sprite_attribute.PRIORITY | 0x06bc)
+            objA1.render_flags = render_flag.WORLD
+            objA1.sprite_priority = 0x100
+            objA1.hitbox_extends.x = 16
+            objA1.hitbox_extends.y = 16
+            objA1.box_size.x = 999
+            objA1.box_size.y = 999
+            objA1.state = 0
+            objA1.collision_attributes = (collision.size.16x16 | collision.flag.THREAT)
+
+            // Spawn Signal Jammer bomb
+            if SJMGZ1.boss.flipFlag
+                spawnChildObject(0x313368, 0x00, 0x12, 0x00)
+            else
+                spawnChildObject(0x313368, 0x00, -0x12, 0x00)
+            
+            objA1.sprite_attributes = (sprite_attribute.PRIORITY | 0x06bc)
+            objA1.render_flags = render_flag.WORLD
+            objA1.sprite_priority = 0x100
+            objA1.hitbox_extends.x = 16
+            objA1.hitbox_extends.y = 16
+            objA1.box_size.x = 999
+            objA1.box_size.y = 999
+            objA1.state = 0
+            objA1.collision_attributes = (collision.size.16x16 | collision.flag.THREAT)
+        }
+
+        // Rapid fire projectiles at low health
+        if boss.remaining_hits < 5 && SJMGZ1.boss.stateTimer == 160
+            playSound(0xa5)
+        
+        if boss.remaining_hits < 5 && SJMGZ1.boss.stateTimer > 180
+        {
+            if !(level.framecounter.low & 0x0f)
+            {
+                if SJMGZ1.boss.flipFlag
+                {
+                    if SJMGZ1.boss.shootFlipFlag
+                    {
+                        spawnChildObject(0x313310, 0x00, -0x32, -0x48)
+                        SJMGZ1.boss.shootFlipFlag = false
+                    }
+                    else
+                    {
+                        spawnChildObject(0x313310, 0x00, -0x64, -0x48)
+                        SJMGZ1.boss.shootFlipFlag = true
+                    }
+                }
+                else
+                {
+                    if SJMGZ1.boss.shootFlipFlag
+                    {
+                        spawnChildObject(0x313310, 0x00, 0x32, -0x48)
+                        SJMGZ1.boss.shootFlipFlag = false
+                    }
+                    else
+                    {
+                        spawnChildObject(0x313310, 0x00, 0x64, -0x48)
+                        SJMGZ1.boss.shootFlipFlag = true
+                    }
+                }
+                objA1.sprite_attributes = (sprite_attribute.PRIORITY | 0x06bc)
+                objA1.render_flags = render_flag.WORLD
+                objA1.sprite_priority = 0x300
+                objA1.velocity.x = 0
+                objA1.velocity.y = 0
+                objA1.state = 0
+            }
+        }
+
+        if SJMGZ1.boss.stateTimer < 240
+            return
+        SJMGZ1.boss.state = 3
+        SJMGZ1.boss.stateTimer = 0
+    }
+    else if SJMGZ1.boss.state == 3
+    {
+        // State 3: Exit and flip direction
+        if SJMGZ1.boss.stateRepeat
+            SJMGZ1.boss.droneDelayTimer = 30
+        
+        if SJMGZ1.boss.flipFlag
+        {
+            if SJMGZ1.boss.stateTimer == 1
+            {
+                objA0.position.y.u16 = camera.position.y.u16 + getScreenHeight() / 2 - 20
+                SJMGZ1.boss.legFrontXOffset = 0
+                SJMGZ1.boss.legFrontYOffset = 0
+                SJMGZ1.boss.legBackXOffset = 0
+                SJMGZ1.boss.legBackYOffset = 0
+            }
+            
+            if SJMGZ1.boss.stateTimer < 20
+            {
+                objA0.position.x.u16 -= 2
+                objA0.position.y.u16 -= 1
+                SJMGZ1.boss.legFrontXOffset -= 2
+                SJMGZ1.boss.legFrontYOffset -= 1
+                SJMGZ1.boss.legBackXOffset += 2
+                SJMGZ1.boss.legBackYOffset += 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 20 && SJMGZ1.boss.stateTimer < 40
+            {
+                objA0.position.x.u16 -= 2
+                objA0.position.y.u16 += 1
+                SJMGZ1.boss.legFrontXOffset -= 2
+                SJMGZ1.boss.legFrontYOffset += 1
+                SJMGZ1.boss.legBackXOffset += 2
+                SJMGZ1.boss.legBackYOffset -= 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 40 && SJMGZ1.boss.stateTimer < 60
+            {
+                objA0.position.x.u16 -= 2
+                objA0.position.y.u16 -= 1
+                SJMGZ1.boss.legFrontXOffset += 2
+                SJMGZ1.boss.legFrontYOffset += 1
+                SJMGZ1.boss.legBackXOffset -= 2
+                SJMGZ1.boss.legBackYOffset -= 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 60 && SJMGZ1.boss.stateTimer < 80
+            {
+                objA0.position.x.u16 -= 2
+                objA0.position.y.u16 += 1
+                SJMGZ1.boss.legFrontXOffset += 2
+                SJMGZ1.boss.legFrontYOffset -= 1
+                SJMGZ1.boss.legBackXOffset -= 2
+                SJMGZ1.boss.legBackYOffset += 1
+            }
+        }
+        else
+        {
+            if SJMGZ1.boss.stateTimer == 1
+            {
+                objA0.position.y.u16 = camera.position.y.u16 + getScreenHeight() / 2 - 20
+                SJMGZ1.boss.legFrontXOffset = 0
+                SJMGZ1.boss.legFrontYOffset = 0
+                SJMGZ1.boss.legBackXOffset = 0
+                SJMGZ1.boss.legBackYOffset = 0
+            }
+            
+            if SJMGZ1.boss.stateTimer < 20
+            {
+                objA0.position.x.u16 += 2
+                objA0.position.y.u16 -= 1
+                SJMGZ1.boss.legFrontXOffset += 2
+                SJMGZ1.boss.legFrontYOffset -= 1
+                SJMGZ1.boss.legBackXOffset -= 2
+                SJMGZ1.boss.legBackYOffset += 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 20 && SJMGZ1.boss.stateTimer < 40
+            {
+                objA0.position.x.u16 += 2
+                objA0.position.y.u16 += 1
+                SJMGZ1.boss.legFrontXOffset += 2
+                SJMGZ1.boss.legFrontYOffset += 1
+                SJMGZ1.boss.legBackXOffset -= 2
+                SJMGZ1.boss.legBackYOffset -= 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 40 && SJMGZ1.boss.stateTimer < 60
+            {
+                objA0.position.x.u16 += 2
+                objA0.position.y.u16 -= 1
+                SJMGZ1.boss.legFrontXOffset -= 2
+                SJMGZ1.boss.legFrontYOffset += 1
+                SJMGZ1.boss.legBackXOffset += 2
+                SJMGZ1.boss.legBackYOffset -= 1
+            }
+            else if SJMGZ1.boss.stateTimer >= 60 && SJMGZ1.boss.stateTimer < 80
+            {
+                objA0.position.x.u16 += 2
+                objA0.position.y.u16 += 1
+                SJMGZ1.boss.legFrontXOffset -= 2
+                SJMGZ1.boss.legFrontYOffset -= 1
+                SJMGZ1.boss.legBackXOffset += 2
+                SJMGZ1.boss.legBackYOffset += 1
+            }
+        }
+        
+        if SJMGZ1.boss.stateTimer == 40 || SJMGZ1.boss.stateTimer == 80
+            playSound(0x96)
+        
+        if SJMGZ1.boss.stateTimer == 80
+        {
+            SJMGZ1.boss.legFrontXOffset = 0
+            SJMGZ1.boss.legFrontYOffset = 0
+            SJMGZ1.boss.legBackXOffset = 0
+            SJMGZ1.boss.legBackYOffset = 0
+            if !SJMGZ1.boss.stateRepeat
+            {
+                SJMGZ1.boss.stateRepeat++
+                SJMGZ1.boss.state = 3
+                SJMGZ1.boss.stateTimer = 0
+                SJMGZ1.boss.droneDelayTimer = 240
+            }
+            else
+            {
+                // Flip direction
+                if SJMGZ1.boss.flipFlag
+                    SJMGZ1.boss.flipFlag = false
+                else
+                    SJMGZ1.boss.flipFlag = true
+                SJMGZ1.boss.stateRepeat = 0
+                SJMGZ1.boss.state = 1
+                SJMGZ1.boss.stateTimer = 0
+            }
+        }
+    }
+}
+
+//-------------------------------------------------------//
+// Signal Jammer Movement Update                         //
+//-------------------------------------------------------//
+
+function void SJMGZ1.UpdateMovement()
+{
+    UpdateMovementStraightSimple()
+    
+    // Keep boss within screen bounds
+    if objA0.position.x.u16 < camera.position.x.u16 + 100
+    {
+        objA0.position.x.u16 = camera.position.x.u16 + 100
+    }
+    if objA0.position.x.u16 > camera.position.x.u16 + getScreenWidth() - 100
+    {
+        objA0.position.x.u16 = camera.position.x.u16 + getScreenWidth() - 100
+    }
+    if objA0.position.y.u16 < camera.position.y.u16 + 50
+    {
+        objA0.position.y.u16 = camera.position.y.u16 + 50
+    }
+    if objA0.position.y.u16 > camera.position.y.u16 + getScreenHeight() - 100
+    {
+        objA0.position.y.u16 = camera.position.y.u16 + getScreenHeight() - 100
+    }
+}
+
+//-------------------------------------------------------//
+// Signal Jammer Health System                           //
+//-------------------------------------------------------//
+
+function void SJMGZ1.HealthUpdater()
+{
+    if (objA0.collision_attributes != 0)
+        return
+
+    if (objA0.state == 0)
+    {
+        playSound(0x6e)
+        objA0.state = 0x20 * 2
+        objA0.flags2a |= 0x40
+        return
+    }
+    
+    if boss.remaining_hits <= 0
+    {
+        // Boss defeated
+        playMusic(MUSIC_CTRL_FADEOUT)
+        AddScoreForBossEnemy()
+        
+        SJMGZ1.boss.defeated = true
+        objA0.update_address = 0x0887ca
+        objA0.velocity.x = 0
+        objA0.velocity.y = 0
+        SJMGZ1.boss.state = 5
+        SJMGZ1.boss.stateTimer = 0
+        objA0.state = 0
+        
+        // Spawn explosions
+        spawnChildObject(0x083d84, 0x00, 0, 0)
+        
+        SetupAsSignpostSpawner()
+        return
+    }
+
+    --objA0.state
+    if (objA0.state == 0)
+    {
+        objA0.flags2a &= ~0x40
+        u8[A0 + 0x28] = u8[A0 + 0x25]
+    }
+}
+
+//-------------------------------------------------------//
+// Signal Jammer Drone Spawning                          //
+//-------------------------------------------------------//
+
+function void SJMGZ1.SpawnDrones()
+{
+    if SJMGZ1.boss.droneDelayTimer
+        SJMGZ1.boss.droneDelayTimer--
+    if SJMGZ1.boss.droneDoorOpenTimer
+        SJMGZ1.boss.droneDoorOpenTimer--
+
+    if SJMGZ1.boss.droneDoorOpenTimer == 1
+        playSound(0x6d)
+
+    if SJMGZ1.boss.currentDrones >= SJMGZ1.boss.maxDrones || SJMGZ1.boss.droneDelayTimer
+        return
+    if boss.remaining_hits > 8
+        return
+
+    SJMGZ1.boss.droneDoorOpenTimer = 60
+    SJMGZ1.boss.droneDelayTimer = 30
+    SJMGZ1.boss.currentDrones++
+
+    playSound(0x6d)
+
+    if SJMGZ1.boss.flipFlag
+        spawnChildObject(0x313364, 0x00, -0x64, 0x10)
+    else
+        spawnChildObject(0x313364, 0x00, 0x64, 0x10)
+    
+    objA1.sprite_attributes = (sprite_attribute.PRIORITY | 0x06bc)
+    objA1.render_flags = render_flag.WORLD
+    objA1.sprite_priority = 0x100
+    objA1.hitbox_extends.x = 16
+    objA1.hitbox_extends.y = 16
+    objA1.box_size.x = 999
+    objA1.box_size.y = 999
+    objA1.state = 0
+    objA1.collision_attributes = collision.size.8x8_2
+}
+
+//-------------------------------------------------------//
+// Signal Jammer Bomb Projectile                         //
+//-------------------------------------------------------//
+
+//# address-hook(0x313368)
+function void SJMGZ1.Bomb.BaseUpdate()
+{
+    s16 shakeX = s16(camera.position.x.u16) - s16(camera.foreground.x.u16)
+    s16 shakeY = s16(camera.position.y.u16) - s16(camera.foreground.y.u16)
+    bool prioFlag = (objA0.sprite_attributes & sprite_attribute.PRIORITY) != 0
+    
+    if !objA0.state
+    {
+        A1 = 0xffffb000
+        u16[A0 + 0x30] = objA1.position.x.u16
+        objA0.state++
+        return
+    }
+    
+    if objA0.state == 1
+    {
+        objA0.velocity.y = -0x100
+        objA0.state++
+    }
+    
+    DrawObject()
+    UpdateMovementStraightSimple()
+    MoveWithGravity20()
+
+    objA0.position.x.u16 = Math.roundToInt(lerp(objA0.position.x.u16, u16[A0 + 0x30], 0.1f))
+
+    if !(global.framecounter.low & 0x03)
+        playSound(0x89)
+
+    if objA0.position.y.u16 > 0xd0
+    {
+        playSound(0x4e)
+        camera.screenshake.state = 0x10
+        Input.setControllerRumble(-1, 0.5f, 0.5f, 500)
+
+        // Spawn explosions
+        spawnChildObject(0x068d88, 0x00, 0, -36)
+        spawnChildObject(0x068d88, 0x02, 8, -28)
+        spawnChildObject(0x068d88, 0x04, -8, -28)
+        spawnChildObject(0x068d88, 0x06, 4, -20)
+        spawnChildObject(0x068d88, 0x08, -4, -20)
+        spawnChildObject(0x068d88, 0x0a, 4, -4)
+        spawnChildObject(0x068d88, 0x0c, -4, -4)
+
+        // Spawn fire spread
+        spawnChildObject(0x220248, 0x00, 0, 0)
+        s16[A1 + 0x2e] = 15
+        objA1.mapping_offset = 0x01a99a
+        objA1.sprite_attributes = (sprite_attribute.PRIORITY | 0x06bc)
+        objA1.render_flags = render_flag.WORLD
+        objA1.sprite_priority = 0x100
+        objA1.hitbox_extends.x = 8
+        objA1.hitbox_extends.y = 8
+        objA1.collision_attributes = (collision.size.8x16 | collision.flag.THREAT)
+        objA1.velocity.x = -0x500
+        objA1.velocity.y = 0
+        objA1.box_size.x = 999
+        objA1.box_size.y = 999
+        objA1.flags2b |= char.bonus.SHIELD_FIRE
+        objA1.value39 = 0
+
+        spawnChildObject(0x220248, 0x00, 0, 0)
+        s16[A1 + 0x2e] = 15
+        objA1.mapping_offset = 0x01a99a
+        objA1.sprite_attributes = (sprite_attribute.PRIORITY | 0x06bc)
+        objA1.render_flags = render_flag.WORLD
+        objA1.sprite_priority = 0x100
+        objA1.hitbox_extends.x = 8
+        objA1.hitbox_extends.y = 8
+        objA1.collision_attributes = (collision.size.8x16 | collision.flag.THREAT)
+        objA1.velocity.x = 0x500
+        objA1.velocity.y = 0
+        objA1.box_size.x = 999
+        objA1.box_size.y = 999
+        objA1.flags2b |= char.bonus.SHIELD_FIRE
+        objA1.value39 = 0
+
+        objA0.animation.sprite = 0
+        Object.TriggerUnloading()
+        return
+    }
+}
+
+//-------------------------------------------------------//
+// Signal Jammer Sprite Rendering                        //
+//-------------------------------------------------------//
+
+function bool Standalone.onWriteToSpriteTable(s16 px, s16 py, u16 renderQueue)
+{
+    A1 = 0xffffb000
+    bool flipFlag = !SJMGZ1.boss.flipFlag ? 0 : SPRITE_FLAG_FLIP_X
+    
+    // Signal Jammer Drone Shot
+    if (objA0.update_address == 0x313366)
+    {
+        bool droneFlipFlag = objA0.position.x.u16 > objA1.position.x.u16 ? 0 : SPRITE_FLAG_FLIP_X
+        if (global.framecounter.low & 0x01)
+        {
+            SpriteHandle shot = Renderer.addSpriteHandle("tenna_signaljammer_drone_shot_0", px, py, 0xd013)
+            shot.setPriorityFlag(true)
+            shot.setFlipX(droneFlipFlag)
+            shot.setBlendMode(3)
+        }
+        else
+        {
+            SpriteHandle shot = Renderer.addSpriteHandle("tenna_signaljammer_drone_shot_1", px, py, 0xd013)
+            shot.setPriorityFlag(true)
+            shot.setFlipX(droneFlipFlag)
+            shot.setBlendMode(3)
+        }
+        return true
+    }
+    
+    // Signal Jammer Drone
+    if (objA0.update_address == 0x313364)
+    {
+        bool droneFlipFlag = objA0.position.x.u16 > objA1.position.x.u16 ? 0 : SPRITE_FLAG_FLIP_X
+        if objA0.state > 180
+        {
+            if (global.framecounter.low & 0x01)
+            {
+                SpriteHandle antennacharge = Renderer.addSpriteHandle("tenna_signaljammer_drone_gun's_front_charge", px, py, 0x4080)
+                antennacharge.setPriorityFlag(true)
+                antennacharge.setFlipX(droneFlipFlag)
+                antennacharge.setBlendMode(3)
+                if (global.framecounter.low & 0x03)
+                    antennacharge.setTintColor(1, 1, 1, 0.7)
+                else
+                    antennacharge.setTintColor(1, 1, 1, 0.2)
+            }
+            else
+            {
+                SpriteHandle antennacharge = Renderer.addSpriteHandle("tenna_signaljammer_drone_gun's_back_charge", px, py, 0x4080)
+                antennacharge.setPriorityFlag(true)
+                antennacharge.setFlipX(droneFlipFlag)
+                antennacharge.setBlendMode(3)
+                if !(global.framecounter.low & 0x03)
+                    antennacharge.setTintColor(1, 1, 1, 0.7)
+                else
+                    antennacharge.setTintColor(1, 1, 1, 0.2)
+            }
+        }
+        
+        if (global.framecounter.low & 0x01)
+            Renderer.drawCustomSprite("tenna_signaljammer_drone_body_1", px, py, 0x00, (SPRITE_FLAG_PRIO | render_flag.WORLD | droneFlipFlag), 0x4061)
+        else
+            Renderer.drawCustomSprite("tenna_signaljammer_drone_body_0", px, py, 0x00, (SPRITE_FLAG_PRIO | render_flag.WORLD | droneFlipFlag), 0x4061)
+        
+        Renderer.drawCustomSprite("tenna_signaljammer_drone_gun's_front", px, py, 0x00, (SPRITE_FLAG_PRIO | render_flag.WORLD | droneFlipFlag), 0x4062)
+        Renderer.drawCustomSprite("tenna_signaljammer_drone_gun's_back", px, py, 0x00, (SPRITE_FLAG_PRIO | render_flag.WORLD | droneFlipFlag), 0x4060)
+        return true
+    }
+    
+    // Signal Jammer Main Boss
+    if (objA0.update_address == 0x088576)
+    {
+        // Antenna charge effect at low health
+        if boss.remaining_hits < 5 && SJMGZ1.boss.state == 2 && SJMGZ1.boss.stateTimer > 160
+        {
+            SpriteHandle antennacharge = Renderer.addSpriteHandle("tenna_signaljammer_antennacharge", px, py, 0x4040)
+            antennacharge.setPriorityFlag(true)
+            antennacharge.setFlipX(flipFlag)
+            antennacharge.setBlendMode(3)
+            if !(global.framecounter.low & 0x01)
+                antennacharge.setTintColor(1, 1, 1, 0.7)
+            else
+                antennacharge.setTintColor(1, 1, 1, 0.2)
+        }
+        
+        // Cannon charge effect
+        if SJMGZ1.boss.state == 2 && SJMGZ1.boss.stateTimer < 120
+        {
+            SpriteHandle cannoncharge = Renderer.addSpriteHandle("tenna_signaljammer_cannoncharge", px, py, 0x4040)
+            cannoncharge.setPriorityFlag(true)
+            cannoncharge.setFlipX(flipFlag)
+            cannoncharge.setBlendMode(3)
+            if !(global.framecounter.low & 0x01)
+                cannoncharge.setTintColor(1, 1, 1, 0.7)
+            else
+                cannoncharge.setTintColor(1, 1, 1, 0.2)
+        }
+        
+        // Draw legs
+        Renderer.drawCustomSprite("tenna_signaljammer_legs_front", px + SJMGZ1.boss.legFrontXOffset, py + 64 + SJMGZ1.boss.legFrontYOffset, 0x00, (SPRITE_FLAG_PRIO | render_flag.WORLD | flipFlag), 0x4040)
+        Renderer.drawCustomSprite("tenna_signaljammer_legs_back", px + SJMGZ1.boss.legBackXOffset, py + 64 + SJMGZ1.boss.legBackYOffset, 0x00, (SPRITE_FLAG_PRIO | render_flag.WORLD | flipFlag), 0x4030)
+        
+        // Draw door (open or closed)
+        if SJMGZ1.boss.droneDoorOpenTimer
+            Renderer.drawCustomSprite("tenna_signaljammer_door_open", px, py, 0x00, (SPRITE_FLAG_PRIO | render_flag.WORLD | flipFlag), 0x4050)
+        else
+            Renderer.drawCustomSprite("tenna_signaljammer_door_closed", px, py, 0x00, (SPRITE_FLAG_PRIO | render_flag.WORLD | flipFlag), 0x4036)
+        
+        // Draw body (with hit flash)
+        if objA0.state && (global.framecounter.low & 0x01)
+        {
+            Renderer.drawCustomSprite("tenna_signaljammer_body_hit", px, py, 0x00, (SPRITE_FLAG_PRIO | render_flag.WORLD | flipFlag), 0x4035)
+            return true
+        }
+        
+        Renderer.drawCustomSprite("tenna_signaljammer_body", px, py, 0x00, (SPRITE_FLAG_PRIO | render_flag.WORLD | flipFlag), 0x4035)
+        return true
+    }
+    
+    // Signal Jammer Bomb
+    if (objA0.update_address == 0x313368)
+    {
+        Renderer.drawCustomSprite("tenna_bbb_bomb_0", px, py, 0x00, 0, 0x4041, 0, 255)
+        return true
+    }
+    
+    return base.Standalone.onWriteToSpriteTable(px, py, renderQueue)
+}
+
+//-------------------------------------------------------//
+// Signal Jammer Defeated State                          //
+//-------------------------------------------------------//
+
+//# address-hook(0x0887ca) end(0x0887d4)
+function void SJMGZ1.Defeated()
+{
+    SetupAsSignpostSpawner()
+
+    // Spawn boss debris
+    spawnChildObject(0x08894c, 0x00, 0, 0)
+    spawnChildObject(0x08894c, 0x02, -28, 0)
+    spawnChildObject(0x08894c, 0x04, 28, 0)
+    spawnChildObject(0x08894c, 0x06, -28, -22)
+    spawnChildObject(0x08894c, 0x08, 28, -22)
+    
+    playSound(SFX_COLLAPSE)
+    camera.screenshake.state = 0x14
+}
