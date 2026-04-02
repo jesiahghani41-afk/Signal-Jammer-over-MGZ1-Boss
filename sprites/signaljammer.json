@@ -1,1 +1,26 @@
+{
+	"tenna_signaljammer_body":  { "File": "tinkertitanangrybirdsepic.png", "Rect": "0,0,192,160", "Center": "24,80" },
+	"tenna_signaljammer_body_hit":  { "File": "tinkertitanangrybirdsepic.png", "Rect": "192,0,192,160", "Center": "24,80" },
+	"tenna_signaljammer_legs_front":  { "File": "sj_legs.png", "Rect": "0,0,192,36", "Center": "24,0" },
+	"tenna_signaljammer_legs_back":  { "File": "sj_legs.png", "Rect": "0,36,192,36", "Center": "24,0" },
+	"tenna_signaljammer_cannoncharge":  { "File": "sj_cannoncharge.png", "Rect": "0,0,192,160", "Center": "24,80" },
+	"tenna_signaljammer_antennacharge":  { "File": "sj_antennacharge.png", "Rect": "0,0,192,160", "Center": "24,80" },
+	"tenna_signaljammer_door_closed":  { "File": "sj_door.png", "Rect": "0,0,192,160", "Center": "24,80" },
+	"tenna_signaljammer_door_open":  { "File": "sj_door.png", "Rect": "192,0,192,160", "Center": "24,80" },
 
+	"tenna_signaljammer_drone_body_0":  { "File": "tvdrone_body.png", "Rect": "0,0,32,32", "Center": "16,16" },
+	"tenna_signaljammer_drone_body_1":  { "File": "tvdrone_body.png", "Rect": "32,0,32,32", "Center": "16,16" },
+	"tenna_signaljammer_drone_body_broken":  { "File": "tvdrone_body.png", "Rect": "64,0,32,32", "Center": "16,16" },
+	"tenna_signaljammer_drone_gun's_front":  { "File": "tvdrone_gun.png", "Rect": "0,0,48,32", "Center": "24,16" },
+	"tenna_signaljammer_drone_gun's_back":  { "File": "tvdrone_gun.png", "Rect": "0,32,48,32", "Center": "24,16" },
+	"tenna_signaljammer_drone_gun's_front_charge":  { "File": "tvdrone_guncharge.png", "Rect": "0,0,48,32", "Center": "24,16" },
+	"tenna_signaljammer_drone_gun's_back_charge":  { "File": "tvdrone_guncharge.png", "Rect": "0,32,48,32", "Center": "24,16" },
+
+	"tenna_signaljammer_drone_shot_0":  { "File": "minecraftxporb.png", "Rect": "0,0,8,8", "Center": "8,8" },
+	"tenna_signaljammer_drone_shot_1":  { "File": "minecraftxporb.png", "Rect": "8,0,8,8", "Center": "8,8" },
+
+	"tenna_signaljammer_body_broken_topl":  { "File": "tinkertitanangrybirdsepic.png", "Rect": "0,0,96,80", "Center": "0,0" },
+	"tenna_signaljammer_body_broken_topr":  { "File": "tinkertitanangrybirdsepic.png", "Rect": "96,0,96,80", "Center": "0,0" },
+	"tenna_signaljammer_body_broken_bottoml":  { "File": "tinkertitanangrybirdsepic.png", "Rect": "0,80,96,80", "Center": "0,0" },
+	"tenna_signaljammer_body_broken_bottomr":  { "File": "tinkertitanangrybirdsepic.png", "Rect": "96,80,96,80", "Center": "0,0" },
+}
