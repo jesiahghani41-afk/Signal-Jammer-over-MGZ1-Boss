@@ -1,0 +1,10 @@
+{
+	"tenna_bbb_bomb_0": { "File": "tenna_bbb_bomb.png", "Rect":  "0,0,32,32", "Center": "16,16" },
+	"tenna_bbb_bomb_1": { "File": "tenna_bbb_bomb.png", "Rect":  "32,0,32,32", "Center": "16,16" },
+	"tenna_bbb_bomb_2": { "File": "tenna_bbb_bomb.png", "Rect":  "64,0,32,32", "Center": "16,16" },
+	"tenna_bbb_bomb_3": { "File": "tenna_bbb_bomb.png", "Rect":  "96,0,32,32", "Center": "16,16" },
+	"tenna_bbb_bomb_4": { "File": "tenna_bbb_bomb.png", "Rect":  "128,0,32,32", "Center": "16,16" },
+
+	"tenna_bbb_bomb_watchout_0": { "File": "tenna_bbb_bomb_watchout.png", "Rect":  "0,0,64,12", "Center": "32,12" },
+	"tenna_bbb_bomb_watchout_1": { "File": "tenna_bbb_bomb_watchout.png", "Rect":  "64,0,64,12", "Center": "32,12" },
+}
