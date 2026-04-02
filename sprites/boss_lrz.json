@@ -1,0 +1,15 @@
+{
+	"PB_Fire_00": { "File": "tenna_fakesign_fireball.png", "Rect":  "0,0,16,24", "Center": "8,12" },
+	"PB_Fire_01": { "File": "tenna_fakesign_fireball.png", "Rect":  "16,0,16,24", "Center": "8,12" },
+	"PB_Fire_02": { "File": "tenna_fakesign_fireball.png", "Rect":  "32,0,16,24", "Center": "8,12" },
+	"PB_Fire_03": { "File": "tenna_fakesign_fireball.png", "Rect":  "48,0,16,24", "Center": "8,12" },
+	"PB_Fire_04": { "File": "tenna_fakesign_fireball.png", "Rect":  "64,0,16,24", "Center": "8,12" },
+	"PB_Fire_05": { "File": "tenna_fakesign_fireball.png", "Rect":  "80,0,16,24", "Center": "8,12" },
+
+	"PB_Chaotix_Explosion_00": { "File": "tenna_fakesign_fireexplosion.png", "Rect":  "0,0,48,48", "Center": "24,24" },
+	"PB_Chaotix_Explosion_01": { "File": "tenna_fakesign_fireexplosion.png", "Rect":  "0,48,48,48", "Center": "24,24" },
+	"PB_Chaotix_Explosion_02": { "File": "tenna_fakesign_fireexplosion.png", "Rect":  "0,96,48,48", "Center": "24,24" },
+	"PB_Chaotix_Explosion_03": { "File": "tenna_fakesign_fireexplosion.png", "Rect":  "0,144,48,48", "Center": "24,24" },
+	"PB_Chaotix_Explosion_04": { "File": "tenna_fakesign_fireexplosion.png", "Rect":  "0,192,48,48", "Center": "24,24" },
+	"PB_Chaotix_Explosion_05": { "File": "tenna_fakesign_fireexplosion.png", "Rect":  "0,240,48,48", "Center": "24,24" },
+}
